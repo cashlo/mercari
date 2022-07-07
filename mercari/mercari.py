@@ -27,6 +27,9 @@ class Item:
         self.condition = kwargs['condition']
         self.status = kwargs['status']
         self.soldOut = kwargs['status'] == "sold_out"
+        self.updated = kwargs['updated']
+        self.created = kwargs['created']
+        
 
     @staticmethod
     def fromApiResp(apiResp):
@@ -38,6 +41,8 @@ class Item:
             imageURL=apiResp['thumbnails'][0],
             condition=apiResp['item_condition']["id"],
             itemCategory=apiResp['item_category']['name'],
+            updated=apiResp['updated'],
+            created=apiResp['created']
         )
 
 
@@ -45,7 +50,7 @@ def parse(resp):
     # returns [] if resp has no items on it
     # returns [Item's] otherwise
     if "catalog_details" in resp["data"]:
-        return resp["data"]["catalog_details"]
+        return defaultdict(str, resp["data"]["catalog_details"])
 
     if "num_found" not in resp["meta"]:
         return defaultdict(str)
@@ -57,7 +62,7 @@ def parse(resp):
     return [Item.fromApiResp(item) for item in respItems], resp["meta"]["has_next"]
 
 
-def fetch(baseURL, data, number_of_try=1):
+def fetch(baseURL, data, number_of_try=0):
     # let's build up the url ourselves
     # I know requests can do it, but I need to do it myself cause we need
     # special encoding!
@@ -84,7 +89,7 @@ def fetch(baseURL, data, number_of_try=1):
     if not r.ok:
         if number_of_try > 5:
             r.raise_for_status()
-        sleep(0.5*number_of_try)
+        sleep(2**number_of_try)
         return fetch(baseURL, data, number_of_try+1)    
     return parse(r.json())
 
