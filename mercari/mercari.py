@@ -4,6 +4,8 @@ import re
 import urllib.parse
 from enum import Enum
 from math import ceil
+from collections import defaultdict
+from time import sleep
 
 import requests
 from .DpopUtils import generate_DPOP
@@ -11,6 +13,8 @@ from .DpopUtils import generate_DPOP
 rootURL = "https://api.mercari.jp/"
 rootProductURL = "https://jp.mercari.com/item/"
 searchURL = "{}search_index/search".format(rootURL)
+getItemURL = "{}items/get".format(rootURL)
+
 
 
 class Item:
@@ -20,6 +24,7 @@ class Item:
         self.imageURL = kwargs['imageURL']
         self.productName = kwargs['name']
         self.price = kwargs['price']
+        self.condition = kwargs['condition']
         self.status = kwargs['status']
         self.soldOut = kwargs['status'] == "sold_out"
 
@@ -39,6 +44,12 @@ class Item:
 def parse(resp):
     # returns [] if resp has no items on it
     # returns [Item's] otherwise
+    if "catalog_details" in resp["data"]:
+        return resp["data"]["catalog_details"]
+
+    if "num_found" not in resp["meta"]:
+        return defaultdict(str)
+
     if resp["meta"]["num_found"] == 0:
         return [], False
 
@@ -46,7 +57,7 @@ def parse(resp):
     return [Item.fromApiResp(item) for item in respItems], resp["meta"]["has_next"]
 
 
-def fetch(baseURL, data):
+def fetch(baseURL, data, number_of_try=1):
     # let's build up the url ourselves
     # I know requests can do it, but I need to do it myself cause we need
     # special encoding!
@@ -70,7 +81,11 @@ def fetch(baseURL, data):
         'Accept-Encoding': 'deflate, gzip'
     }
     r = requests.get(url, headers=headers)
-    r.raise_for_status()
+    if not r.ok:
+        if number_of_try > 5:
+            r.raise_for_status()
+        sleep(0.5*number_of_try)
+        return fetch(baseURL, data, number_of_try+1)    
     return parse(r.json())
 
 
@@ -91,3 +106,9 @@ def search(keywords, sort="created_time", order="desc", status="on_sale", limit=
         items, has_next_page = fetch(searchURL, data)
         yield from items
         data['page'] += 1
+
+def get_phone_details(item_id):
+    data = {
+        "id": item_id,
+    }
+    return fetch(getItemURL, data)
