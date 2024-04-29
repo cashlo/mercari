@@ -89,6 +89,7 @@ def fetch(baseURL, data, number_of_try=0):
     if not r.ok:
         if number_of_try > 5:
             r.raise_for_status()
+        print(f"Error! Wait for {2**number_of_try}s")
         sleep(2**number_of_try)
         return fetch(baseURL, data, number_of_try+1)    
     return parse(r.json())
